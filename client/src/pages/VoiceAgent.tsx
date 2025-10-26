@@ -561,12 +561,6 @@ export default function VoiceAgent() {
               <p className="text-sm text-gray-600">Voice-powered itinerary planning</p>
             </div>
             <div className="flex gap-2">
-              {/* Debug Info */}
-              <div className="text-xs text-gray-500 mr-4 text-right">
-                <div>API Key: {import.meta.env.VITE_DEEPGRAM_API_KEY ? '✓ Configured' : '✗ Missing'}</div>
-                <div>Status: {isConnected ? '🟢 Connected' : '🔴 Disconnected'}</div>
-                <div>Recording: {isRecording ? '🎙️ Active' : '⏸️ Inactive'}</div>
-              </div>
               <Button variant="outline" onClick={skipToHome}>
                 Skip to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -582,12 +576,6 @@ export default function VoiceAgent() {
           <Card className="p-6 flex flex-col h-[calc(100vh-250px)]">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-semibold text-gray-900">AI Assistant</h2>
-              <div className="flex items-center gap-2">
-                <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-300'} animate-pulse`} />
-                <span className="text-sm text-gray-600">
-                  {isConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </div>
             </div>
             
             <div className="flex-1 overflow-y-auto space-y-4 mb-4">
