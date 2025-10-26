@@ -37,4 +37,5 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
+  envDir: path.resolve(import.meta.dirname),
 });
