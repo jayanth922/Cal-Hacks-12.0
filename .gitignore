@@ -1,0 +1,7 @@
+add the .env file and nodemodules that will be populated as soon as I run npm I
+# Environment files
+.env
+
+# Node modules
+node_modules/
+
