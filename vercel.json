@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install",
+  "installCommand": "npm install --production=false",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "framework": null,
