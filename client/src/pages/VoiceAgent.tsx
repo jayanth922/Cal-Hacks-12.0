@@ -26,10 +26,12 @@ export default function VoiceAgent() {
   const [agentTranscript, setAgentTranscript] = useState<TranscriptMessage[]>([]);
   const [userTranscript, setUserTranscript] = useState<TranscriptMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState<string>(""); // For showing real-time speech
   
   const websocketRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const utteranceBufferRef = useRef<string[]>([]); // Buffer to accumulate utterances
 
   // Add initial agent greeting
   useEffect(() => {
@@ -253,9 +255,16 @@ export default function VoiceAgent() {
 
       console.log("Connecting to Deepgram...");
 
-      // Create WebSocket connection to Deepgram
+      // Create WebSocket connection to Deepgram with improved settings for longer utterances
       const ws = new WebSocket(
-        `wss://api.deepgram.com/v1/listen?model=nova-2&language=en&smart_format=true&interim_results=true`,
+        `wss://api.deepgram.com/v1/listen?` +
+        `model=nova-2&` +
+        `language=en&` +
+        `smart_format=true&` +
+        `interim_results=true&` +
+        `endpointing=500&` +  // Wait 500ms of silence before finalizing
+        `vad_events=true&` +   // Voice activity detection events
+        `utterance_end_ms=2000`, // Wait 2 seconds before ending utterance
         ["token", DEEPGRAM_API_KEY]
       );
 
@@ -269,28 +278,62 @@ export default function VoiceAgent() {
         startRecording(ws);
       };
 
-      ws.onmessage = (event) => {
+            ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log("Received message from Deepgram:", data);
+        
+        // Handle speech started event
+        if (data.type === 'SpeechStarted') {
+          console.log("🎤 Speech started");
+          utteranceBufferRef.current = []; // Clear buffer when new speech starts
+        }
         
         if (data.channel?.alternatives?.[0]?.transcript) {
           const transcript = data.channel.alternatives[0].transcript;
           const isFinal = data.is_final;
           
-          if (transcript && isFinal) {
-            console.log("Final transcript:", transcript);
-            // Add to user transcript
-            setUserTranscript(prev => [...prev, {
-              speaker: "user",
-              text: transcript,
-              timestamp: new Date()
-            }]);
-
-            // Generate intelligent agent response
+          if (transcript) {
+            if (!isFinal) {
+              // Show interim results in real-time (optional: display to user)
+              console.log("Interim:", transcript);
+              setInterimTranscript(transcript);
+            } else {
+              // Final transcript - add to buffer
+              console.log("Final transcript:", transcript);
+              setInterimTranscript(""); // Clear interim
+              
+              // Add to utterance buffer
+              utteranceBufferRef.current.push(transcript);
+              
+              // Add to user transcript immediately for display
+              setUserTranscript(prev => [...prev, {
+                speaker: "user",
+                text: transcript,
+                timestamp: new Date()
+              }]);
+            }
+          }
+        }
+        
+        // Handle utterance end event - this means user stopped speaking
+        if (data.type === 'UtteranceEnd' || data.speech_final) {
+          console.log("✅ Utterance ended - processing complete statement");
+          
+          // Combine all buffered transcripts into one complete statement
+          const completeStatement = utteranceBufferRef.current.join(" ").trim();
+          
+          if (completeStatement) {
+            console.log("📝 Complete statement:", completeStatement);
+            
+            // Generate intelligent agent response based on complete context
             setTimeout(() => {
               // Check if we have complete information before responding
-              const allUserMessages = [...userTranscript, { speaker: "user" as const, text: transcript, timestamp: new Date() }];
-              const details = extractTripDetails(allUserMessages);
+              // Use all accumulated transcripts for better context
+              const allUserMessages = userTranscript.map(t => t.text).join(" ") + " " + completeStatement;
+              const details = extractTripDetails([{
+                speaker: "user",
+                text: allUserMessages,
+                timestamp: new Date()
+              }]);
               
               let response: string;
               
@@ -310,7 +353,7 @@ export default function VoiceAgent() {
                 setTimeout(() => generateItinerary(details), 1500);
               } else {
                 // We still need more information
-                response = generateAgentResponse(transcript);
+                response = generateAgentResponse(completeStatement);
                 setAgentTranscript(prev => [...prev, {
                   speaker: "agent",
                   text: response,
@@ -318,6 +361,9 @@ export default function VoiceAgent() {
                 }]);
               }
             }, 500);
+            
+            // Clear the buffer after processing
+            utteranceBufferRef.current = [];
           }
         }
       };
@@ -382,8 +428,8 @@ export default function VoiceAgent() {
             ws.send(event.data);
           }
         };
-        
-        mediaRecorder.start(250); // Send data every 250ms
+
+        mediaRecorder.start(500); // Send data every 500ms
         mediaRecorderRef.current = mediaRecorder;
         console.log("✅ Recording started with MediaRecorder");
       } else {
