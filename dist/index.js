@@ -1,4 +1,5 @@
 // server/index.ts
+import dotenv from "dotenv";
 import express2 from "express";
 
 // server/routes.ts
@@ -8,116 +9,6 @@ import { promisify } from "util";
 import path from "path";
 var execAsync = promisify(exec);
 async function registerRoutes(app2) {
-  app2.get("/api/deepgram-key", async (req, res) => {
-    try {
-      const apiKey = process.env.DEEPGRAM_API_KEY;
-      if (!apiKey) {
-        return res.status(500).json({
-          error: "Deepgram API key not configured"
-        });
-      }
-      res.json({ apiKey });
-    } catch (error) {
-      console.error("Error fetching Deepgram key:", error);
-      res.status(500).json({
-        error: "Failed to fetch API key",
-        details: error.message
-      });
-    }
-  });
-  app2.post("/api/voice-chat", async (req, res) => {
-    try {
-      const { message, conversationHistory, tripInfo } = req.body;
-      if (!message) {
-        return res.status(400).json({
-          error: "Message is required"
-        });
-      }
-      const ASI_API_KEY = process.env.ASI_API_KEY;
-      if (!ASI_API_KEY) {
-        return res.status(500).json({
-          error: "ASI API key not configured"
-        });
-      }
-      const API_URL = "https://api.asi1.ai/v1/chat/completions";
-      let systemPrompt = `You are a helpful travel planning assistant. Your goal is to help users plan their trips by gathering information about:
-1. Destination city
-2. Start date of the trip
-3. End date of the trip
-
-Have a natural conversation with the user. Be friendly, conversational, and helpful. Ask follow-up questions if needed to clarify information. When you have all three pieces of information, summarize them clearly.
-
-Important: Keep responses concise and conversational, suitable for voice interaction. Respond in 1-2 sentences maximum.`;
-      if (tripInfo) {
-        systemPrompt += `
-
-Current collected information:`;
-        if (tripInfo.city) systemPrompt += `
-- City: ${tripInfo.city}`;
-        if (tripInfo.startDate) systemPrompt += `
-- Start Date: ${tripInfo.startDate}`;
-        if (tripInfo.endDate) systemPrompt += `
-- End Date: ${tripInfo.endDate}`;
-        const missing = [];
-        if (!tripInfo.city) missing.push("city");
-        if (!tripInfo.startDate) missing.push("start date");
-        if (!tripInfo.endDate) missing.push("end date");
-        if (missing.length > 0) {
-          systemPrompt += `
-
-Still need to ask for: ${missing.join(", ")}`;
-        } else {
-          systemPrompt += `
-
-All information collected! Confirm with the user and let them know we're ready to create their itinerary.`;
-        }
-      }
-      const messages = [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        ...conversationHistory || [],
-        {
-          role: "user",
-          content: message
-        }
-      ];
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${ASI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: "asi1-mini",
-          messages,
-          temperature: 0.7,
-          max_tokens: 150
-        })
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`ASI API Error: ${response.status} - ${errorText}`);
-      }
-      const data = await response.json();
-      const assistantMessage = data.choices[0].message.content;
-      res.json({
-        message: assistantMessage,
-        conversationHistory: [
-          ...conversationHistory || [],
-          { role: "user", content: message },
-          { role: "assistant", content: assistantMessage }
-        ]
-      });
-    } catch (error) {
-      console.error("Error in voice chat:", error);
-      res.status(500).json({
-        error: "Failed to process voice chat",
-        details: error.message
-      });
-    }
-  });
   app2.post("/api/generate-itinerary", async (req, res) => {
     try {
       const { location, startDate, endDate } = req.body;
@@ -187,7 +78,8 @@ var vite_config_default = defineConfig({
       strict: true,
       deny: ["**/.*"]
     }
-  }
+  },
+  envDir: path2.resolve(import.meta.dirname)
 });
 
 // server/vite.ts
@@ -258,7 +150,6 @@ function serveStatic(app2) {
 }
 
 // server/index.ts
-import dotenv from "dotenv";
 dotenv.config();
 var app = express2();
 app.use(express2.json({
